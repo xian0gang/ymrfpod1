@@ -7,6 +7,7 @@
 
 #include "widget.h"
 #include "ui_widget.h"
+#include <windows.h>
 
 Widget::Widget(QWidget *parent) :
     QWidget(parent),
@@ -476,22 +477,22 @@ int Widget::flir_init()
 ////    vcam = new QVCamServer;
 
 
-//    int ret=vcam.ScanCams();
-//    ret=vcam.ConnectToCamScanned(0);
-//    if (!ret)
-//    {
-//        Sleep(2000);
-//        ret=vcam.ScanCams();
-//        ret=vcam.ConnectToCamScanned(0);
-//    }
-//    Sleep(1000);
+    int ret=vcam.ScanCams();
+    ret=vcam.ConnectToCamScanned(0);
+    if (!ret)
+    {
+        Sleep(2000);
+        ret=vcam.ScanCams();
+        ret=vcam.ConnectToCamScanned(0);
+    }
+    Sleep(1000);
 
 
-//    QString str2 = "FLIR_init1";
-//    QByteArray data(str2.toLatin1());
-//    tcp_server->write(data);
+    QString str2 = "FLIR_init1";
+    QByteArray data(str2.toLatin1());
+    tcp_server->write(data);
 
-//    init_flag = true;
+    init_flag = true;
 }
 
 int Widget::flir_connect(int num)
@@ -513,27 +514,27 @@ int Widget::flir_connect(int num)
 ////    qDebug()<<success2;
 
 
-//    int aa = 0;
-//    ITchannels = vcam.GetMultiNbrChannel((int&)aa);
+    int aa = 0;
+    ITchannels = vcam.GetMultiNbrChannel((int&)aa);
 
-//    if(ITchannels != 4)
-//    {
-//        LONG    nChannel =0x04; //积分通道
-//        int success3 = vcam.SetMultiTi(nChannel);
-//        if(success3 == 0)
-//        {
-//            ui->textBrowser->append("开启多积分通道失败");
-//        }
-//        else
-//        {
-//            ui->textBrowser->append("开启多积分通道成功");
-//        }
-//    }
+    if(ITchannels != 4)
+    {
+        int    nChannel =0x04; //积分通道
+        int success3 = vcam.SetMultiTi(nChannel);
+        if(success3 == 0)
+        {
+            ui->textBrowser->append("开启多积分通道失败");
+        }
+        else
+        {
+            ui->textBrowser->append("开启多积分通道成功");
+        }
+    }
 
-//    QString str3 = "FLIR_GetMultiNbrChannel1:";
-//    str3 = str3 + QString::number(ITchannels, 10);
-//    QByteArray data3(str3.toLatin1());
-//    tcp_server->write(data3);
+    QString str3 = "FLIR_GetMultiNbrChannel1:";
+    str3 = str3 + QString::number(ITchannels, 10);
+    QByteArray data3(str3.toLatin1());
+    tcp_server->write(data3);
 
 }
 
@@ -648,68 +649,68 @@ int Widget::flir_getit(int index)
 
 int Widget::flir_setit(int index, int it)
 {
-//    ULONG dwIntegration = it;
-//    ULONG dwDelay = 0x00;
+    uint dwIntegration = it;
+    uint dwDelay = 0x00;
 
-//    ULONG bAutoFrequency = FALSE;
-//    uint success2 = vcam.SetIntegration(dwIntegration,dwDelay,index,bAutoFrequency);
-//    return success2;
+    uint bAutoFrequency = FALSE;
+    uint success2 = vcam.SetIntegration(dwIntegration,dwDelay,index,bAutoFrequency);
+    return success2;
 }
 
 int Widget::flir_setnuc()
 {
-//    uint hr;
-//    uint ret;
+    uint hr;
+    uint ret;
 
-//    //计算1point NUC
-//    uint bNUCIsToDo = TRUE; // NUC is to be calculate
-//    int nNucType = 1; // 1 pt NUC type
-//    int nMethode = 2; // BB method
-//    uint bKeepGain = FALSE; // Keep previous Gain option
-//    int nNumberOfAverageFrame = 10; // Number of frame
-//    uint bSave = FALSE; //Save after calcul option
+    //计算1point NUC
+    uint bNUCIsToDo = 1; // NUC is to be calculate
+    int nNucType = 1; // 1 pt NUC type
+    int nMethode = 2; // BB method
+    uint bKeepGain = 0; // Keep previous Gain option
+    int nNumberOfAverageFrame = 10; // Number of frame
+    uint bSave = FALSE; //Save after calcul option
 
 
-//    ret=vcam.ScanCams();
-//    ret=vcam.ConnectToCamScanned(0);
-//    if (!ret)
-//    {
-//        Sleep(2000);
-//        ret=vcam.ScanCams();
-//        ret=vcam.ConnectToCamScanned(0);
-//    }
-//    Sleep(1000);
+    ret=vcam.ScanCams();
+    ret=vcam.ConnectToCamScanned(0);
+    if (!ret)
+    {
+        Sleep(2000);
+        ret=vcam.ScanCams();
+        ret=vcam.ConnectToCamScanned(0);
+    }
+    Sleep(1000);
 
-//    //Set NUC to be Caluclate
-//    hr = vcam.SetDoNuc(bNUCIsToDo);
-//    qDebug()<<hr;
-//    //Choose 1 pt NUC type
-//    hr = vcam.SetNucType(nNucType);
-//    qDebug()<<hr;
-//    //Choose Black body method
-//    //Note that you can only do one point NUC with BB method or shutter one
-//    hr = vcam.SetMethode(nMethode);
-//    qDebug()<<hr;
-//    //Choose Keep previous Gain
-//    hr = vcam.SetKeepGain(bKeepGain);
-//    qDebug()<<hr;
-//    //Set Average number of frames
-//    hr = vcam.SetAverageFrames(nNumberOfAverageFrame);
-//    qDebug()<<hr;
-//    //Don’t save after NUC calcul
-//    hr = vcam.SetSaveAfterUpdate(bSave);
-//    qDebug()<<hr;
-//    //Calculate NUC and update informations
-//    hr =vcam.UpdateNuc();
-//    qDebug()<<hr;
+    //Set NUC to be Caluclate
+    hr = vcam.SetDoNuc(bNUCIsToDo);
+    qDebug()<<hr;
+    //Choose 1 pt NUC type
+    hr = vcam.SetNucType(nNucType);
+    qDebug()<<hr;
+    //Choose Black body method
+    //Note that you can only do one point NUC with BB method or shutter one
+    hr = vcam.SetMethode(nMethode);
+    qDebug()<<hr;
+    //Choose Keep previous Gain
+    hr = vcam.SetKeepGain(bKeepGain);
+    qDebug()<<hr;
+    //Set Average number of frames
+    hr = vcam.SetAverageFrames(nNumberOfAverageFrame);
+    qDebug()<<hr;
+    //Don’t save after NUC calcul
+    hr = vcam.SetSaveAfterUpdate(bSave);
+    qDebug()<<hr;
+    //Calculate NUC and update informations
+    hr =vcam.UpdateNuc();
+    qDebug()<<hr;
 
-//    if(hr == 0)
-//    {
-//        ui->textBrowser->append("非均匀性矫正失败！");
-//    }
-//    else
-//    {
-//        ui->textBrowser->append("非均匀性矫正成功！");
-//    }
-//    return hr;
+    if(hr == 0)
+    {
+        ui->textBrowser->append("非均匀性矫正失败！");
+    }
+    else
+    {
+        ui->textBrowser->append("非均匀性矫正成功！");
+    }
+    return hr;
 }
