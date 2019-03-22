@@ -8,6 +8,7 @@
 #include "widget.h"
 #include "ui_widget.h"
 #include <windows.h>
+#include <QSettings>
 
 Widget::Widget(QWidget *parent) :
     QWidget(parent),
@@ -20,6 +21,8 @@ Widget::Widget(QWidget *parent) :
     index = 0;
     data_len = 0;
     init_flag = false;
+
+    ReadSetTing();
 
     ui->textBrowser->document()->setMaximumBlockCount(1500);
 
@@ -38,13 +41,15 @@ Widget::Widget(QWidget *parent) :
     //主控服务端 9002
     server_master = new QTcpServer();
     tcp_server_master = new QTcpSocket();
-    server_master->listen(QHostAddress::Any, 9002);
+    int masterport = ui->masterport_lineEdit->text().toInt();
+    server_master->listen(QHostAddress::Any, masterport);
     connect(server_master,SIGNAL(newConnection()),this,SLOT(TCP_master_Connect()));
 
     //测试软件服务端 9001
     server = new QTcpServer();
     tcp_server = new QTcpSocket();
-    server->listen(QHostAddress::Any, 9001);
+    int testport = ui->testport_lineEdit->text().toInt();
+    server->listen(QHostAddress::Any, testport);
     connect(server,SIGNAL(newConnection()),this,SLOT(NewConnect()));
 
 }
@@ -52,7 +57,59 @@ Widget::Widget(QWidget *parent) :
 Widget::~Widget()
 {
 //    flir_close();
+    WriteSetTing();
     delete ui;
+}
+
+
+//读取程序启动状态信息
+int Widget::ReadSetTing()
+{
+    //设置配置文件的目录和位置，如果有，则不动，没有，会自动创建
+    QSettings setting("setting.ini",QSettings::IniFormat);
+    QString ip;
+    QString port;
+    QString masterport;
+    QString testport;
+    if(setting.contains(tr("net/ip_one"))&&setting.contains(tr("net/port_one")))//如果已经存在这个文件，那就进行读取
+    {
+        ip = setting.value("net/ip_one").toString();//将读取出的数据进行使用
+        port = setting.value("net/port_one").toString();
+        masterport = setting.value("net/masterport").toString();//将读取出的数据进行使用
+        testport = setting.value("net/testport").toString();
+
+        ui->ip_lineEdit->setText(ip);
+        ui->port_lineEdit->setText(port);
+        ui->masterport_lineEdit->setText(masterport);
+        ui->testport_lineEdit->setText(testport);
+    }
+    return 0;
+}
+
+//写程序状态信息
+int Widget::WriteSetTing()
+{
+    QSettings setting("setting.ini",QSettings::IniFormat);
+    QString ip;
+    QString port;
+    QString masterport;
+    QString testport;
+
+    setting.beginGroup(tr("net"));//节点开始
+
+    ip = ui->ip_lineEdit->text();
+    port = ui->port_lineEdit->text();
+    masterport = ui->masterport_lineEdit->text();
+    testport = ui->testport_lineEdit->text();
+
+    setting.setValue("ip_one",ip);//设置key和value，也就是参数和值
+    setting.setValue("port_one",port);
+    setting.setValue("masterport",masterport);//设置key和value，也就是参数和值
+    setting.setValue("testport",testport);
+
+    setting.endGroup();//节点结束
+
+    return 0;
 }
 
 
@@ -405,7 +462,9 @@ void Widget::TCP_Connect()
         socket->abort();
 
 //        qDebug()<<"开始连接";
-        socket->connectToHost("192.168.1.100", 9000);
+        QString ip = ui->ip_lineEdit->text();
+        QString port = ui->port_lineEdit->text();
+        socket->connectToHost(ip, port.toInt());
 
         if(!socket->waitForConnected(300))
         {
