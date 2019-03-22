@@ -1,0 +1,9 @@
+*.dll
+*.lib
+Makefile
+*.Debug
+*.Release
+/debug
+/release
+*.user
+*.exe
