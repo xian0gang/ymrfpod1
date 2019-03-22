@@ -36,6 +36,20 @@
      <item>
       <widget class="QLineEdit" name="testport_lineEdit"/>
      </item>
+     <item>
+      <widget class="QLabel" name="label_5">
+       <property name="text">
+        <string>串口端口号：</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="uart_lineEdit">
+       <property name="alignment">
+        <set>Qt::AlignCenter</set>
+       </property>
+      </widget>
+     </item>
     </layout>
    </item>
    <item row="3" column="0">

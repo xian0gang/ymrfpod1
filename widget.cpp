@@ -23,12 +23,12 @@ Widget::Widget(QWidget *parent) :
     init_flag = false;
 
     ReadSetTing();
+    uartInit();
 
     ui->textBrowser->document()->setMaximumBlockCount(1500);
 
     camera_ctr_one = false;
     camera_ctr_two = false;
-
 
     //热像仪2 tcp 客户端 9000
     socket = new QTcpSocket();
@@ -45,13 +45,6 @@ Widget::Widget(QWidget *parent) :
     server_master->listen(QHostAddress::Any, masterport);
     connect(server_master,SIGNAL(newConnection()),this,SLOT(TCP_master_Connect()));
 
-    //测试软件服务端 9001
-    server = new QTcpServer();
-    tcp_server = new QTcpSocket();
-    int testport = ui->testport_lineEdit->text().toInt();
-    server->listen(QHostAddress::Any, testport);
-    connect(server,SIGNAL(newConnection()),this,SLOT(NewConnect()));
-
 }
 
 Widget::~Widget()
@@ -61,6 +54,32 @@ Widget::~Widget()
     delete ui;
 }
 
+void Widget::uartInit()
+{
+    serial = new QSerialPort;
+    QString uartPort = ui->uart_lineEdit->text();
+    serial->setPortName("com" + uartPort);
+    bool open_flag;
+    open_flag = serial->open(QIODevice::ReadWrite);
+    if(!open_flag)
+    {
+
+        qDebug()<<"open fail";
+        return;
+    }
+    else
+    {
+
+    }
+
+    serial->setBaudRate(QSerialPort::Baud115200);//设置波特率为115200
+    serial->setDataBits(QSerialPort::Data8);//设置数据位8
+    serial->setParity(QSerialPort::NoParity); //校验位设置为0
+    serial->setStopBits(QSerialPort::OneStop);//停止位设置为1
+    serial->setFlowControl(QSerialPort::NoFlowControl);//设置为无流控制
+
+    connect(serial, SIGNAL(readyRead()), this, SLOT(uartReadData()));
+}
 
 //读取程序启动状态信息
 int Widget::ReadSetTing()
@@ -71,17 +90,20 @@ int Widget::ReadSetTing()
     QString port;
     QString masterport;
     QString testport;
+    QString uartPort;
     if(setting.contains(tr("net/ip_one"))&&setting.contains(tr("net/port_one")))//如果已经存在这个文件，那就进行读取
     {
         ip = setting.value("net/ip_one").toString();//将读取出的数据进行使用
         port = setting.value("net/port_one").toString();
         masterport = setting.value("net/masterport").toString();//将读取出的数据进行使用
         testport = setting.value("net/testport").toString();
+        uartPort = setting.value("net/uartPort").toString();
 
         ui->ip_lineEdit->setText(ip);
         ui->port_lineEdit->setText(port);
         ui->masterport_lineEdit->setText(masterport);
         ui->testport_lineEdit->setText(testport);
+        ui->uart_lineEdit->setText(uartPort);
     }
     return 0;
 }
@@ -94,18 +116,20 @@ int Widget::WriteSetTing()
     QString port;
     QString masterport;
     QString testport;
-
+    QString uartPort;
     setting.beginGroup(tr("net"));//节点开始
 
     ip = ui->ip_lineEdit->text();
     port = ui->port_lineEdit->text();
     masterport = ui->masterport_lineEdit->text();
     testport = ui->testport_lineEdit->text();
+    uartPort = ui->uart_lineEdit->text();
 
     setting.setValue("ip_one",ip);//设置key和value，也就是参数和值
     setting.setValue("port_one",port);
     setting.setValue("masterport",masterport);//设置key和value，也就是参数和值
     setting.setValue("testport",testport);
+    setting.setValue("uartPort",uartPort);
 
     setting.endGroup();//节点结束
 
@@ -114,7 +138,7 @@ int Widget::WriteSetTing()
 
 
 /*************************************** 主控 tcp *********************************************************/
-////主控
+
 void Widget::TCP_master_Connect()
 {
     tcp_server_master = server_master->nextPendingConnection();
@@ -124,39 +148,51 @@ void Widget::TCP_master_Connect()
     ui->textBrowser->append("测试服务端连接成功");
 }
 
-////主控
 void Widget::socket_master_Read_Data()
 {
     QByteArray buffer;
     buffer = tcp_server_master->readAll();
+    header* head = (header*)buffer.data();
     qDebug()<<"read:"<<buffer.toHex();
-    if(buffer.at(0) == 0x52)
+    if(head->type == 0x52)
     {
-        switch (buffer.at(1)) {
+        switch (head->opcode) {
         //0x01 记录开始和停止
         case 0x01:
         {
             QString str;
+            QByteArray ba;
+            ba[0] = 0x07;
+            ba[1] = 0x55;
+            ba[2] = 0x21;
+            ba[3] = 0x00;
+            ba[4] = 0x02;
             if(buffer.at(8) == 0x01)
             {
                 str = "热像仪1";
+                ba[5] = 0x01;
             }
             if(buffer.at(8) == 0x02)
             {
                 str = "热像仪2";
+                ba[5] = 0x02;
             }
             if(buffer.at(8) == 0x03)
             {
                 str = "热像仪1和热像仪2";
+                ba[5] = 0x03;
             }
             if(buffer.at(9) == 0x01)
             {
                 str = str + "开始记录";
+                ba[6] = 0x01;
             }
             if(buffer.at(9) == 0x02)
             {
                 str = str + "停止记录";
+                ba[6] = 0x02;
             }
+            serial->write(ba);
             ui->textBrowser->append(str);
             break;
         }
@@ -181,15 +217,70 @@ void Widget::socket_master_Read_Data()
         }
         case 0x05:
         {
+            QByteArray ba;
+            ba[0] = 0x07;
+            ba[1] = 0x55;
+            ba[2] = 0x13;
+            ba[3] = 0x00;
+            ba[4] = 0x01;
+            ba[5] = 0xff;
+            serial->write(ba);
             ui->textBrowser->append("数据记录仪维护自检");
             break;
         }
         case 0x06:
         {
+            QByteArray ba;
+            ba[0] = 0x07;
+            ba[1] = 0x55;
+            ba[2] = 0x11;
+            ba[3] = 0x00;
+            ba[4] = 0x01;
+            ba[5] = buffer.at(8);
+            serial->write(ba);
             if(buffer.at(8) == 0x01)
                 ui->textBrowser->append("关机");
             if(buffer.at(8) == 0x02)
                 ui->textBrowser->append("重启");
+            break;
+        }
+        case 0x0b:
+        {
+            QByteArray ba;
+            ba[0] = 0x07;
+            ba[1] = 0x55;
+            ba[2] = 0x15;
+            ba[3] = 0x00;
+            ba[4] = 0x01;
+            ba[5] = 0xff;
+            serial->write(ba);
+            ui->textBrowser->append("读中波容量");
+            break;
+        }
+        case 0x0c:
+        {
+            QByteArray ba;
+            ba[0] = 0x07;
+            ba[1] = 0x55;
+            ba[2] = 0x17;
+            ba[3] = 0x00;
+            ba[4] = 0x01;
+            ba[5] = 0xff;
+            serial->write(ba);
+            ui->textBrowser->append("读长波容量");
+            break;
+        }
+        case 0x0d:
+        {
+            QByteArray ba;
+            ba[0] = 0x07;
+            ba[1] = 0x55;
+            ba[2] = 0x19;
+            ba[3] = 0x00;
+            ba[4] = 0x01;
+            ba[5] = 0xff;
+            serial->write(ba);
+            ui->textBrowser->append("读模拟视频容量");
             break;
         }
         default:
@@ -200,257 +291,74 @@ void Widget::socket_master_Read_Data()
 
 }
 
-/*************************************** 测试服务端 *********************************************************/
-//测试服务端
-void Widget::NewConnect()
+void Widget::uartReadData()
 {
-    qDebug("测试服务端 connect");
-    tcp_server = server->nextPendingConnection();
-
-    connect(tcp_server, SIGNAL(readyRead()), this, SLOT(ReadMessage()));
-    connect(tcp_server, SIGNAL(disconnected()), this, SLOT(TcpClose()));
-    ui->textBrowser->append("测试服务端连接成功");
-}
-
-
-//测试服务端
-void Widget::TcpClose()
-{
-    tcp_server->deleteLater();
-    qDebug() <<"TcpClose";
-    tcp_masterConnect_flag = false;
-    ui->textBrowser->append("测试服务端断开连接");
-}
-
-//测试服务端
-void Widget::ReadMessage()
-{
-    QByteArray ba;
-    ba = tcp_server->readAll();
-    qDebug()<<"read:"<<ba;
-    ui->textBrowser->append(ba);
-
-//测试软件控制命令
-    if(ba == "FLIR_Camera_Ctr")
-    {
-        qDebug()<<"FLIR_Camera_Ctr";
-        camera_ctr_one = true;
-        QString str2 = "Ctr success";
-        QByteArray data2(str2.toLatin1());
-        tcp_server->write(data2);
-        return;
-    }
-
-
-    if(ba == "FLIR_Camera_quit")
-    {
-        qDebug()<<"FLIR_Camera_quit";
-        camera_ctr_one = false;
-        QString str2 = "quit success";
-        QByteArray data2(str2.toLatin1());
-        tcp_server->write(data2);
-
-        tcp_server->close();
-        tcp_masterConnect_flag = false;
-        return;
-    }
-
-
-    /*********************************    热像仪2   **************************************/
-    //热像仪2 连接
-        if((ba.indexOf("FLIR_init2") >= 0) ||
-            (ba.indexOf("FLIR_connect2") >= 0) ||
-                (ba.indexOf("FLIR_close2") >= 0) ||
-                (ba.indexOf("FLIR_getfrequency2") >= 0) ||
-                (ba.indexOf("FLIR_setfrequency2") >= 0) ||
-                (ba.indexOf("FLIR_filter2") >= 0) ||
-                (ba.indexOf("FLIR_getit2") >= 0) ||
-                (ba.indexOf("FLIR_setit2") >= 0) ||
-                (ba.indexOf("FLIR_SetMultiTi2") >= 0) ||
-                (ba.indexOf("FLIR_warning2") >= 0) ||
-                (ba.indexOf("FLIR_setnuc2") >= 0))
+    QByteArray buffer;
+    buffer = serial->readAll();
+    qDebug()<<"uart read:"<<buffer.toHex();
+    switch (buffer.at(2)) {
+    case 0x22:
+        switch (buffer.at(5))
         {
-            socket->write(ba);
-            ui->textBrowser->append("热像仪2数据转发");
-            return;
+        case 0x01:
+            qDebug("开始记录成功");
+            break;
+        case 0x02:
+            qDebug("开始记录不成功");
+            break;
+        case 0x03:
+            qDebug("停止记录成功");
+            break;
+        case 0x04:
+            qDebug("停止记录不成功");
+            break;
+        default:
+            break;
         }
-/*********************************    热像仪1   **************************************/
-    //热像仪1 模块初始化
-    if(ba == "FLIR_init1")
-    {
-        qDebug()<<"FLIR_Init";
-
-        flir_init();
-        ui->textBrowser->append("初始化完成");
-        return;
-    }
-
-    if(init_flag)
-    {
-        //热像仪1 设置频率
-        if(ba.indexOf("FLIR_setfrequency1:") >= 0)
+        break;
+    case 0x12:
+        switch (buffer.at(5))
         {
-            QString str = ba;
-            QString num = str.section(':', 1, 1);
-            int success  = flir_setfrequency(num.toInt());
-            QString str2 = "FLIR_setfrequency1:";
-            str2 = str2 + QString::number(success, 10);
-            QByteArray data(str2.toLatin1());
-            tcp_server->write(data);
-            if(success == 0)
-            {
-                ui->textBrowser->append("频率设置失败");
-            }
-            else
-            {
-                ui->textBrowser->append("频率设置成功");
-            }
+        case 0x01:
+            qDebug("关机成功");
+            break;
+        case 0x02:
+            qDebug("关机不成功");
+            break;
+        case 0x03:
+            qDebug("重启成功");
+            break;
+        case 0x04:
+            qDebug("重启不成功");
+            break;
+        default:
+            break;
         }
-
-        //热像仪1 获取频率
-        if(ba.indexOf("FLIR_getfrequency1") >= 0)
+        break;
+    case 0x14:
+        switch (buffer.at(5))
         {
-            qDebug()<<"FLIR_Camera_GetFrequency";
-            int frequency = flir_getfrequency();
-            QString str = "FLIR_getfrequency1:";
-            str = str + QString::number(frequency, 10);
-            QByteArray data(str.toLatin1());
-            tcp_server->write(data);
-            if(frequency == 0)
-            {
-                ui->textBrowser->append("频率获取失败");
-            }
-            else
-            {
-                ui->textBrowser->append("频率获取成功");
-            }
+        case 0x01:
+            qDebug("自检成功");
+            break;
+        case 0x02:
+            qDebug("自检不成功");
+            break;
+        default:
+            break;
         }
-
-        //热像仪1 连接
-        if(ba.indexOf("FLIR_connect1:") >= 0)
-        {
-            QString str = ba;
-            QString num = str.section(':', 1, 1);
-            flir_connect(num.toInt());
-            ui->textBrowser->append("连接热像仪成功");
-        }
-
-        //滤片
-        if(ba.indexOf("FLIR_filter1:") >= 0)
-        {
-
-            QString str = ba;
-            QString num = str.section(':', 1, 1);
-            qDebug()<<num.toInt();
-            int success = flir_setfilter(num.toInt());
-            QString str2 = "FLIR_filter1:";
-            str2 = str2 + QString::number(success, 10);
-            QByteArray data(str2.toLatin1());
-            tcp_server->write(data);
-            if(success == 0)
-            {
-                ui->textBrowser->append("切换滤片失败");
-            }
-            else
-            {
-                ui->textBrowser->append("切换滤片成功");
-            }
-
-        }
-
-        if(ba.indexOf("FLIR_close1") >= 0)
-        {
-            qDebug()<<"FLIR_close1";
-            flir_close();
-            ui->textBrowser->append("驱动注销成功，可关闭程序");
-        }
-
-        if(ba.indexOf("FLIR_getit1:") >= 0)
-        {
-            QString str = ba;
-            QString num = str.section(':', 1, 1);
-            qDebug()<<num.toInt();
-
-            int it = flir_getit(num.toInt());
-            str = str + ":" + QString::number(it, 10);
-            QByteArray data(str.toLatin1());
-            tcp_server->write(data);
-            if(it == 0)
-            {
-                ui->textBrowser->append("获取积分时间为0或者失败");
-            }
-            else
-            {
-                ui->textBrowser->append("获取积分时间成功");
-            }
-        }
-
-        if(ba.indexOf("FLIR_setit1:") >= 0)
-        {
-            QString str = ba;
-            QString index = str.section(':', 1, 1);
-            QString it = str.section(':', 2, 2);
-            qDebug()<<index.toInt();
-            qDebug()<<it.toInt();
-
-            int success = flir_setit(index.toInt(), it.toInt());
-
-            QString str2 = "FLIR_setit1:";
-            str2 = str2 + QString::number(success, 10);
-            QByteArray data(str2.toLatin1());
-            tcp_server->write(data);
-
-            QString txt = "设置通道";
-            if(success == 0)
-            {
-                txt = txt + index + "的积分时间失败";
-            }
-            else
-            {
-                txt = txt + index + "的积分时间成功";
-            }
-            ui->textBrowser->append(txt);
-        }
-
-        if(ba.indexOf("FLIR_SetMultiTi:") >= 0)
-        {
-            QString str = ba;
-            QString num = str.section(':', 1, 1);
-            QString index = str.section(':', 2, 2);
-            int    nChannel = num.toInt(); //积分通道
-            int success = vcam.SetMultiTi(nChannel);
-            if(success == 0)
-            {
-                ui->textBrowser->append("开启积分通道失败");
-            }
-            else
-            {
-                ui->textBrowser->append("开启积分通道成功");
-            }
-            QString str2 = "FLIR_SetMultiTi:";
-            str2 = str2 + index + ":" + QString::number(success, 10);
-            QByteArray data(str2.toLatin1());
-            tcp_server->write(data);
-        }
-
-        if(ba.indexOf("FLIR_setnuc1") >= 0)
-        {
-            int success = flir_setnuc();
-            QString str2 = "FLIR_setnuc1:";
-            str2 = str2 + QString::number(success, 10);
-            QByteArray data(str2.toLatin1());
-            tcp_server->write(data);
-        }
-
-    }
-    else
-    {
-        QString str2 = "FLIR_warning:init";
-        QByteArray data(str2.toLatin1());
-        tcp_server->write(data);
+        break;
+    case 0x16:
+        qDebug("中波容量");
+        break;
+    case 0x18:
+        break;
+    case 0x1a:
+        break;
+        default:
+            break;
     }
 }
-
 
 /*************************************** 热像仪2 tcp*********************************************************/
 //热像仪2
@@ -521,21 +429,6 @@ void Widget::repeat_connect_tcp()
 //初始化
 int Widget::flir_init()
 {
-//    FLIR_LIBInitialize();
-
-//    mylib = new QLibrary("FLIR_LIB");
-//    mylib->load();
-//    if(!mylib->isLoaded())
-//    {
-//        qDebug()<<"load FLIR_Matlab_SDK_Lib failed";
-//    }
-//    typedef void (*fun)();
-//    fun FLIR_Init = (fun)mylib->resolve("?FLIR_Init@@YAXXZ");
-//    FLIR_Init();
-//    ui->textBrowser->append("模块初始化完成");
-////    vcam = new QVCamServer;
-
-
     int ret=vcam.ScanCams();
     ret=vcam.ConnectToCamScanned(0);
     if (!ret)
@@ -556,23 +449,6 @@ int Widget::flir_init()
 
 int Widget::flir_connect(int num)
 {
-//    typedef void (*fun1)(int nargout, mwArray& bSuccess, const mwArray& bAutomaticConnection);
-//    fun1 FLIR_Camera_Connect = (fun1)mylib->resolve("?FLIR_Camera_Connect@@YAXHAAVmwArray@@ABV1@@Z");
-//    int connect = 1;
-
-//    mwArray mwa(1,1,mxINT32_CLASS);
-//    mwArray mwb(1,1,mxINT32_CLASS);
-//    //bAutomaticConnection 1 自动连接
-//    //bAutomaticConnection 0 手动连接
-//    int a[1] = {num};
-//    mwb.SetData(a,1);
-//    FLIR_Camera_Connect(connect, mwa, mwb);
-//    int success = mwa.Get(1,1);
-////    qDebug()<<success;
-//    int success2 = mwb.Get(1,1);
-////    qDebug()<<success2;
-
-
     int aa = 0;
     ITchannels = vcam.GetMultiNbrChannel((int&)aa);
 
@@ -600,110 +476,30 @@ int Widget::flir_connect(int num)
 
 int Widget::flir_close()
 {
-//    typedef void (*fun1)();
-//    fun1 FLIR_Close = (fun1)mylib->resolve("?FLIR_Close@@YAXXZ");
-//    FLIR_Close();
-//    init_flag = false;
+
 }
 
 
 
 int Widget::flir_getfrequency()
 {
-//    typedef void (*fun1)(int nargout, mwArray& bSuccess, const mwArray& bAutomaticConnection);
-//    fun1 FLIR_Camera_GetFrequency = (fun1)mylib->resolve("?FLIR_Camera_GetFrequency@@YAXHAAVmwArray@@0@Z");
-//    int connect = 2;
 
-//    mwArray mwa(1,1,mxINT32_CLASS);
-//    mwArray mwb(1,1,mxINT32_CLASS);
-//    FLIR_Camera_GetFrequency(connect, mwa, mwb);
-//    int success = mwa.Get(1,1);
-//    qDebug()<<success;
-//    int success2 = mwb.Get(1,1);
-//    qDebug()<<success2;
-//    if(success == 0)
-//    {
-//        qDebug("get Frequency failed");
-//        return 0;
-//    }
-////    ui->frequency_label->setText(QString::number(success2,10));
-//    return  success2;
 }
 
 int Widget::flir_setfrequency(int frequency)
 {
-//    typedef void (*fun1)(int nargout,
-//                         mwArray& bSuccess,
-//                         mwArray& bSucceededToSetFrequency,
-//                         mwArray& fActualFrequency,
-//                         const mwArray& fFrequency,
-//                         const mwArray& bAutoFrequency);
-//    fun1 FLIR_Camera_SetFrequency = (fun1)mylib->resolve("?FLIR_Camera_SetFrequency@@YAXHAAVmwArray@@00ABV1@1@Z");
-//    int connect = 2;
 
-//    mwArray mwa(1,1,mxINT32_CLASS);
-//    mwArray mwb(1,1,mxINT32_CLASS);
-//    mwArray mwc(1,1,mxINT32_CLASS);
-//    mwArray mwd(1,1,mxINT32_CLASS);
-//    mwArray mwe(1,1,mxINT32_CLASS);
-//    int a[1] = {0};
-//    mwd.SetData(a,1);
-//    int b[1] = {frequency};
-//    mwc.SetData(b,1);
-
-//    FLIR_Camera_SetFrequency(connect, mwa, mwb, mwe, mwc, mwd);
-//    int success = mwa.Get(1,1);
-//    int success2 = mwb.Get(1,1);
-
-//    return success2;
 }
 
 int Widget::flir_setfilter(int index)
 {
-//    typedef void (*fun1)(int nargout,
-//                         mwArray& bSuccess,
-//                         const mwArray& dwFilterIndex);
-//    fun1 FLIR_Camera_SetFilter = (fun1)mylib->resolve("?FLIR_Camera_SetFilter@@YAXHAAVmwArray@@ABV1@@Z");
-//    int connect = 1;
 
-//    mwArray mwa(1,1,mxINT32_CLASS);
-//    mwArray mwb(1,1,mxINT32_CLASS);
-//    int b[1] = {index};
-//    mwb.SetData(b,1);
-
-//    FLIR_Camera_SetFilter(connect, mwa, mwb);
-//    int success = mwa.Get(1,1);
-
-//    return success;
 }
 
 //获取积分时间
 int Widget::flir_getit(int index)
 {
-//    typedef void (*fun1)(int nargout,
-//                         mwArray& bSuccess,
-//                         mwArray& fIT,
-//                         const mwArray& nChannel);
-//    fun1 FLIR_Camera_GetIT = (fun1)mylib->resolve("?FLIR_Camera_GetIT@@YAXHAAVmwArray@@0ABV1@@Z");
-//    int connect = 1;
 
-//    mwArray mwa(1,1,mxINT32_CLASS);
-//    mwArray mwb(1,1,mxINT32_CLASS);
-//    mwArray mwc(1,1,mxINT32_CLASS);
-//    int c[1] = {index};
-//    mwc.SetData(c,1);
-
-//    FLIR_Camera_GetIT(connect, mwa, mwb, mwc);
-//    int success = mwa.Get(1,1);
-//    int it = mwb.Get(1,1);
-
-//    if(success == 0)
-//    {
-////        ui->textBrowser->append("获取积分时间失败！");
-//        return 0;
-//    }
-
-//    return it;
 }
 
 int Widget::flir_setit(int index, int it)

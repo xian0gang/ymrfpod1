@@ -13,6 +13,14 @@
 #include <QFile>
 #include "qvcamserver.h"
 
+struct header{
+    unsigned char type;
+    unsigned char opcode;
+    unsigned short reserved;
+    int len;
+    unsigned char data[16];
+};
+
 namespace Ui {
 class Widget;
 }
@@ -26,6 +34,7 @@ public:
     ~Widget();
     int WriteSetTing();
     int ReadSetTing();
+    void uartInit();
 
 private slots:
 
@@ -46,10 +55,12 @@ private slots:
     void TCP_master_Connect();
     void socket_master_Read_Data();
 
-    //测试服务端
-    void NewConnect();
-    void ReadMessage();
-    void TcpClose();
+    void uartReadData();
+
+//    //测试服务端
+//    void NewConnect();
+//    void ReadMessage();
+//    void TcpClose();
 
 
 private:
@@ -80,7 +91,7 @@ private:
     QByteArray array;
     quint32 length;
 
-
+    QSerialPort *serial;
     int ITchannels;
 };
 

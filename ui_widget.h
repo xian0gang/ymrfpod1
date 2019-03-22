@@ -32,6 +32,8 @@ public:
     QLineEdit *masterport_lineEdit;
     QLabel *label_2;
     QLineEdit *testport_lineEdit;
+    QLabel *label_5;
+    QLineEdit *uart_lineEdit;
     QHBoxLayout *horizontalLayout_3;
     QLabel *label_3;
     QLineEdit *ip_lineEdit;
@@ -70,6 +72,17 @@ public:
         testport_lineEdit->setObjectName(QStringLiteral("testport_lineEdit"));
 
         horizontalLayout->addWidget(testport_lineEdit);
+
+        label_5 = new QLabel(Widget);
+        label_5->setObjectName(QStringLiteral("label_5"));
+
+        horizontalLayout->addWidget(label_5);
+
+        uart_lineEdit = new QLineEdit(Widget);
+        uart_lineEdit->setObjectName(QStringLiteral("uart_lineEdit"));
+        uart_lineEdit->setAlignment(Qt::AlignCenter);
+
+        horizontalLayout->addWidget(uart_lineEdit);
 
 
         gridLayout->addLayout(horizontalLayout, 0, 0, 1, 1);
@@ -116,6 +129,7 @@ public:
         Widget->setWindowTitle(QApplication::translate("Widget", "Widget", 0));
         label->setText(QApplication::translate("Widget", "\344\270\273\346\216\247\346\234\215\345\212\241\347\253\257\345\217\243:", 0));
         label_2->setText(QApplication::translate("Widget", "\346\265\213\350\257\225\347\253\257\345\217\243:", 0));
+        label_5->setText(QApplication::translate("Widget", "\344\270\262\345\217\243\347\253\257\345\217\243\345\217\267\357\274\232", 0));
         label_3->setText(QApplication::translate("Widget", "\347\203\255\345\203\217\344\273\2522 IP:", 0));
         label_4->setText(QApplication::translate("Widget", "\347\203\255\345\203\217\344\273\2522 PORT\357\274\232", 0));
     } // retranslateUi
